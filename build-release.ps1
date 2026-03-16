@@ -28,7 +28,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ProjectDir  = "$PSScriptRoot\BakerStreetWatchdog"
+$ProjectDir  = "$PSScriptRoot"
 $PublishDir  = "$PSScriptRoot\publish"
 $PackId      = "BakerStreetWatchdog"
 $MainExe     = "BakerStreetWatchdog.exe"

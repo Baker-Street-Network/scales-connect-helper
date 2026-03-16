@@ -105,7 +105,7 @@ Velopack's one-click installer:
 
 ## Auto-Update Flow
 
-1. Two minutes after service start, `UpdateService` calls `CheckForUpdatesAsync()`.
+1. Two minutes after service start, `UpdateService` queries GitHub Releases for a new version.
 2. New version found → downloads delta package in the background.
 3. `ApplyUpdatesAndRestart()` exits the current process.
 4. Velopack updater extracts the new version, calls `--veloapp-updated` on the new exe.
@@ -117,16 +117,18 @@ Velopack's one-click installer:
 ## Project Structure
 
 ```
-BakerStreetWatchdog/
-├── BakerStreetWatchdog/
-│   ├── BakerStreetWatchdog.csproj   Velopack NuGet, self-contained publish
-│   ├── Program.cs                    VelopackApp hooks wired here (OnInstall/OnUpdate/OnUninstall)
-│   ├── ServiceManager.cs             Windows Service install/uninstall via sc.exe
-│   ├── WatchdogWorker.cs             Core process-monitoring loop
-│   ├── UpdateService.cs              Self-update background service
-│   ├── WatchdogSettings.cs           Typed config model
-│   └── appsettings.json              Edit before building
-├── Build-Release.ps1                 One-command build + vpk pack pipeline
+scales-connect-helper/
+├── .github/
+│   └── workflows/
+│       └── release.yml               GitHub Actions: build, vpk pack, publish release
+├── BakerStreetWatchdog.csproj        Velopack NuGet, self-contained win-x64 publish
+├── Program.cs                        VelopackApp hooks wired here (OnInstall/OnUpdate/OnUninstall)
+├── ServiceManager.cs                 Windows Service install/uninstall via sc.exe
+├── WatchDogWorker.cs                 Core process-monitoring loop
+├── UpdateService.cs                  Self-update via GitHub Releases (GithubSource)
+├── WatchdogSettings.cs               Typed config model
+├── appsettings.json                  Edit before building
+├── build-release.ps1                 Manual build + vpk pack (alternative to CI)
 └── README.md
 ```
 

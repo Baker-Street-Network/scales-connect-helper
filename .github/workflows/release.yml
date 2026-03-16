@@ -1,0 +1,77 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Allows manual trigger
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Velopack
+        run: dotnet tool install -g vpk
+
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "push") {
+            $version = "${{ github.ref_name }}" -replace '^v', ''
+          } else {
+            $version = "${{ github.event.inputs.version }}"
+          }
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          echo "Version: $version"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish --configuration Release --no-build -r win-x64 --self-contained true -p:PublishSingleFile=true --output ./publish
+
+      - name: Create Velopack Release
+        shell: pwsh
+        run: |
+          vpk pack `
+            -u BakerStreetWatchdog `
+            -v ${{ steps.version.outputs.VERSION }} `
+            -p ./publish `
+            -e BakerStreetWatchdog.exe `
+            -o ./releases
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./releases/*
+          tag_name: ${{ github.event_name == 'push' && github.ref_name || format('v{0}', github.event.inputs.version) }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: velopack-release
+          path: ./releases/*

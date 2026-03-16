@@ -43,14 +43,7 @@ public class WatchdogSettings
     // ── Self-update settings ──────────────────────────────────────────────────
 
     /// <summary>
-    /// URL to the folder/feed where Velopack releases are hosted.
-    /// Example: "https://my-server.com/releases/watchdog"
-    /// Leave empty to disable self-updating.
-    /// </summary>
-    public string UpdateUrl { get; set; } = string.Empty;
-
-    /// <summary>
-    /// How often (in hours) to check for a new watchdog release.
+    /// How often (in hours) to check GitHub Releases for a new watchdog version.
     /// Default: 6 hours.
     /// </summary>
     public int UpdateCheckIntervalHours { get; set; } = 6;
