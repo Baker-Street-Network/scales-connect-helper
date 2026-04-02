@@ -44,6 +44,50 @@ internal static class UserSessionLauncher
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern uint WTSGetActiveConsoleSessionId();
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(nint processHandle, uint desiredAccess, out nint tokenHandle);
+
+    [DllImport("kernel32.dll")]
+    private static extern nint GetCurrentProcess();
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool LookupPrivilegeValue(string? lpSystemName, string lpName, out LUID lpLuid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool AdjustTokenPrivileges(
+        nint tokenHandle,
+        bool disableAllPrivileges,
+        ref TOKEN_PRIVILEGES newState,
+        uint bufferLength,
+        nint previousState,
+        nint returnLength);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LUID
+    {
+        public uint LowPart;
+        public int  HighPart;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LUID_AND_ATTRIBUTES
+    {
+        public LUID  Luid;
+        public uint  Attributes;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TOKEN_PRIVILEGES
+    {
+        public uint              PrivilegeCount;
+        public LUID_AND_ATTRIBUTES Privilege;   // single-entry inline array
+    }
+
+    private const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
+    private const uint TOKEN_QUERY             = 0x0008;
+    private const uint SE_PRIVILEGE_ENABLED    = 0x0002;
+    private const string SE_TCB_NAME           = "SeTcbPrivilege";
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct STARTUPINFO
     {
@@ -74,7 +118,42 @@ internal static class UserSessionLauncher
     private const uint NORMAL_PRIORITY_CLASS      = 0x00000020;
     private const uint CREATE_NEW_CONSOLE         = 0x00000010;
 
-    // ?? Public API ???????????????????????????????????????????????????????????
+    // ?? Public API ????????????????????????????????????????????????????????????
+
+    /// <summary>
+    /// Enables <c>SeTcbPrivilege</c> in the current process token so that
+    /// <see cref="WTSQueryUserToken"/> succeeds when running as a Windows Service
+    /// under the SYSTEM account.
+    /// </summary>
+    private static void EnableTcbPrivilege()
+    {
+        if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out nint token))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "OpenProcessToken failed.");
+
+        try
+        {
+            if (!LookupPrivilegeValue(null, SE_TCB_NAME, out LUID luid))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), $"LookupPrivilegeValue failed for '{SE_TCB_NAME}'.");
+
+            var tp = new TOKEN_PRIVILEGES
+            {
+                PrivilegeCount = 1,
+                Privilege      = new LUID_AND_ATTRIBUTES { Luid = luid, Attributes = SE_PRIVILEGE_ENABLED }
+            };
+
+            AdjustTokenPrivileges(token, false, ref tp, 0, nint.Zero, nint.Zero);
+
+            // AdjustTokenPrivileges returns true even for partial success; check
+            // GetLastError to distinguish "not all privileges assigned" (1300).
+            int err = Marshal.GetLastWin32Error();
+            if (err != 0)
+                throw new Win32Exception(err, $"AdjustTokenPrivileges failed to enable '{SE_TCB_NAME}'. Ensure the service account has this privilege.");
+        }
+        finally
+        {
+            CloseHandle(token);
+        }
+    }
 
     /// <summary>
     /// Launches <paramref name="exePath"/> inside the active interactive session.
@@ -85,6 +164,8 @@ internal static class UserSessionLauncher
     /// <exception cref="Win32Exception">A Win32 call failed.</exception>
     public static Process Launch(string exePath, string arguments, string workingDirectory)
     {
+        EnableTcbPrivilege();
+
         uint sessionId = WTSGetActiveConsoleSessionId();
         if (sessionId == 0xFFFFFFFF)
             throw new InvalidOperationException("No active interactive session found. Is a user logged in?");

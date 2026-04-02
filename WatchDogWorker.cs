@@ -234,13 +234,15 @@ public class WatchdogWorker(ILogger<WatchdogWorker> logger, IOptions<WatchdogSet
                     _managedProcess.Dispose();
                     _managedProcess = null;
                 }
+
+                // Launch inside the lock so the poll loop cannot sneak in
+                // and fire a second launch before this one completes.
+                await LaunchProcessAsync().ConfigureAwait(false);
             }
             finally
             {
                 _restartLock.Release();
             }
-
-            await LaunchProcessAsync().ConfigureAwait(false);
         });
     }
 

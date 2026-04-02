@@ -15,6 +15,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Properties\launchSettings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include=".github\workflows\release.yml" />
   </ItemGroup>
 
