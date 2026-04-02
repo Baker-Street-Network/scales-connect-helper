@@ -35,17 +35,28 @@ internal static class ConnectPathResolver
             if (!sidName.StartsWith('S')) continue;
 
             string runPath = $@"{sidName}\{RunKeyPath}";
-            using RegistryKey? runKey = hku.OpenSubKey(runPath, writable: false);
-            if (runKey is null) continue;
+            RegistryKey? runKey;
+            try
+            {
+                runKey = hku.OpenSubKey(runPath, writable: false);
+            }
+            catch (System.Security.SecurityException)
+            {
+                continue;
+            }
+            using (runKey)
+            {
+                if (runKey is null) continue;
 
-            string? raw = runKey.GetValue(AppName) as string;
-            if (string.IsNullOrWhiteSpace(raw)) continue;
+                string? raw = runKey.GetValue(AppName) as string;
+                if (string.IsNullOrWhiteSpace(raw)) continue;
 
-            // The value is stored as: "C:\Users\...\BakerScaleConnect.exe"
-            // Strip surrounding quotes if present.
-            string path = raw.Trim('"');
-            if (File.Exists(path))
-                return path;
+                // The value is stored as: "C:\Users\...\BakerScaleConnect.exe"
+                // Strip surrounding quotes if present.
+                string path = raw.Trim('"');
+                if (File.Exists(path))
+                    return path;
+            }
         }
 
         return null;
