@@ -14,28 +14,28 @@ using Velopack;
 // then exits — normal startup code below never runs in those cases.
 // ─────────────────────────────────────────────────────────────────────────────
 VelopackApp.Build()
-    .OnInstall(version =>
-    {
-        // Called once after the files are extracted but before the installer closes.
-        // Register and start the service pointing at our own executable.
-        var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName;
-        ServiceManager.InstallAndStart(exePath);
-    })
-    .OnUpdate(version =>
-    {
-        // Called on the NEW version's exe after an update is applied.
-        // Velopack moves the exe to a new 'current' directory, so we must
-        // update the service's binary path to point at the new location.
-        var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName;
-        ServiceManager.UpdateBinaryPath(exePath);
-    })
-    .OnUninstall(version =>
-    {
-        // Called before the files are removed. Stop and delete the service first
-        // so Windows doesn't complain about locked files.
-        ServiceManager.StopAndUninstall();
-    })
-    .Run();
+.OnAfterInstallFastCallback(version =>
+{
+    // Called once after the files are extracted but before the installer closes.
+    // Register and start the service pointing at our own executable.
+    var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName;
+    ServiceManager.InstallAndStart(exePath);
+})
+.OnAfterUpdateFastCallback(version =>
+{
+    // Called on the NEW version's exe after an update is applied.
+    // Velopack moves the exe to a new 'current' directory, so we must
+    // update the service's binary path to point at the new location.
+    var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule!.FileName;
+    ServiceManager.UpdateBinaryPath(exePath);
+})
+.OnBeforeUninstallFastCallback(version =>
+{
+    // Called before the files are removed. Stop and delete the service first
+    // so Windows doesn't complain about locked files.
+    ServiceManager.StopAndUninstall();
+})
+.Run();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Normal application startup — only reached when running as the actual service
